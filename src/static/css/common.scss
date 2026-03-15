@@ -1,0 +1,20 @@
+/* 全局页面容器：全屏、自适应、不塌陷 */
+.page-container {
+  min-height: 100vh;
+  box-sizing: border-box;
+  background-color: #f8f8f8;
+  padding-bottom: env(safe-area-inset-bottom); /* 适配底部安全区 */
+}
+
+/* 主色（你的甜点商城主色） */
+:root {
+  --primary-color: #ff7a7c;
+  --text-color: #333;
+  --text-secondary: #999;
+  --bg-color: #f8f8f8;
+}
+
+page {
+  background-color: var(--bg-color);
+  font-family: "PingFang SC", "Helvetica Neue", sans-serif;
+}
