@@ -3,14 +3,11 @@
 
     <!-- 地址区域 -->
     <view class="address-section" @click="goToAddress">
-      <view v-if="hasDefaultAddress">
-        <view class="default-tag" v-if="defaultAddress.isDefault">默认地址</view>
-        <view class="name">{{ defaultAddress.name }}</view>
-        <view class="phone">{{ defaultAddress.phone }}</view>
-        <view class="addr">{{ defaultAddress.address }}</view>
-      </view>
-      <view v-else class="no-address">
-        请添加收货地址 →
+      <view>
+        <view class="default-tag" v-if="defaultAddress._id == userInfo.address">上次用过</view>
+        <view class="name">姓名：{{defaultAddress.name }}</view>
+        <view class="phone">联系电话：{{ defaultAddress.phone }}</view>
+        <view class="addr">收货地址：{{ defaultAddress.address }}</view>
       </view>
       <text class="arrow">></text>
     </view>
@@ -50,8 +47,9 @@
 
 <script setup>
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onShow } from '@dcloudio/uni-app'
 import { userInfo } from '@/stores/user'
+import { cartInfo } from '@/stores/cart'
 
 // 接收的商品列表（id + count）
 const goodsList = ref([])
@@ -60,18 +58,18 @@ const hasDefaultAddress = ref(false)
 const totalPrice = ref(0)
 
 // 页面加载时接收参数：商品ID + 数量
-onLoad(async (options) => {
+onShow(async () => {
   if (!userInfo.value.isLogin) {
     uni.showToast({ title: '请先登录', icon: 'none' })
     return
   }
 
   // 接收前端传过来的商品列表
-  const buyList = JSON.parse(decodeURIComponent(options.goods))
-  console.log('购买商品：', buyList)
+  // const buyList = JSON.parse(decodeURIComponent(options.goods))
+  // console.log('购买商品：', buyList)
 
   // 实时从云数据库获取最新商品信息
-  await loadRealGoodsData(buyList)
+  await loadRealGoodsData()
 
   // 加载默认地址
   await loadDefaultAddress()
@@ -81,16 +79,16 @@ onLoad(async (options) => {
 })
 
 // 🔥 核心：根据ID实时拉取云数据库最新商品信息
-const loadRealGoodsData = async (buyList) => {
+const loadRealGoodsData = async () => {
   const db = wx.cloud.database()
   const result = []
 
-  for (let g of buyList) {
-    const res = await db.collection('goods').doc(g.id).get()
+  for (let g of cartInfo.value.data) {
+    const res = await db.collection('goods').doc(g.productId).get()
     if (res.data) {
       result.push({
         ...res.data,
-        buyCount: g.count // 购买数量
+        buyCount: g.num // 购买数量
       })
     }
   }
@@ -101,18 +99,16 @@ const loadRealGoodsData = async (buyList) => {
 // 加载默认地址
 const loadDefaultAddress = async () => {
   try {
-    const db = wx.cloud.database()
-    const res = await db.collection('address')
-      .where({
-        userId: userInfo.value.openid,
-        isDefault: true
-      })
-      .get()
+    // const db = wx.cloud.database()
+    // const res = await db.collection('address')
+    //   .where({
+    //     _id: userInfo.value.address
+    //   })
+    //   .get()
 
-    if (res.data.length > 0) {
-      defaultAddress.value = res.data[0]
-      hasDefaultAddress.value = true
-    }
+    // if (res.data.length > 0) {
+      defaultAddress.value = userInfo.value.addressInfo
+    // }
   } catch (e) {}
 }
 
@@ -127,7 +123,7 @@ const calcTotalPrice = () => {
 
 // 去地址页
 const goToAddress = () => {
-  uni.navigateTo({ url: '/pages/address/index' })
+  uni.navigateTo({ url: '/pages/address/index?isSelectMode=true' })
 }
 
 // 提交订单
@@ -199,9 +195,9 @@ const submitOrder = () => {
     &:last-child { border-bottom: none; }
   }
 
-  .name { font-size: 28rpx; color: #333; }
-  .price { color: #ff7a7c; font-weight: bold; }
-  .count { color: #666; }
+  .name { font-size: 30rpx; color: #333; }
+  .price { font-size: 30rpx;color: #ff7a7c; font-weight: bold; }
+  .count { font-size: 30rpx;color: #666; }
 }
 
 .price-section {

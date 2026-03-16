@@ -1,14 +1,14 @@
 <template>
   <view class="float-cart" @click="goCart">
     <view class="icon">🛒</view>
-    <view class="badge" v-if="count > 0">{{ count }}</view>
+    <view class="badge" v-if="cartInfo.count > 0">{{ cartInfo.count }}</view>
   </view>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import { cartInfo } from '@/stores/cart'
 
-const count = ref(0)
 
 const goCart = () => {
   uni.switchTab({

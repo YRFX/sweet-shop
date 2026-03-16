@@ -37,7 +37,7 @@
         <!-- 浮动购物车 -->
         <view class="float-cart" @click="goToCart">
             <view class="icon">🛒</view>
-            <view class="badge" v-if="cartInfo.value.count > 0">{{ cartInfo.value.count }}</view>
+            <view class="badge" v-if="cartInfo.count > 0">{{ cartInfo.count }}</view>
         </view>
 
     </view>

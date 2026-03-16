@@ -6,7 +6,8 @@ const userInfo = ref({
   nickName: '',
   isLogin: false,
   isGuest: true,
-  address: ""
+  address: "",
+  addressInfo: {}
 })
 // 登录
 const login = async (info) => {
@@ -17,6 +18,7 @@ const login = async (info) => {
     isLogin: true,
     isGuest: false
   }
+  console.log(userInfo.value)
   uni.setStorageSync('userInfo', userInfo.value)
 }
 
@@ -49,6 +51,16 @@ const saveUserToCloud = async (res) => {
         data: { lastLoginTime: new Date() }
       })
       userData = data[0]
+      if (userData.address && userData.address !== "") {
+        const db = wx.cloud.database()
+
+        // 🔥 正确：根据ID查单条地址（doc 专门查_id）
+        const res = await db.collection('address').doc(userData.address).get()
+
+        // 地址数据在 res.data
+        userData.addressInfo = res.data
+      }
+
       console.log('✅ 云数据库：更新登录时间成功')
     }
     return userData

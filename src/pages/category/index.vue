@@ -37,7 +37,7 @@
     <!-- ====================== -->
     <view class="float-cart" @click="goToCart">
       <view class="icon">🛒</view>
-      <view class="badge" v-if="cartCount > 0">{{ cartCount }}</view>
+      <view class="badge" v-if="cartInfo.count > 0">{{ cartInfo.count }}</view>
     </view>
 
         <!-- ====================== -->
@@ -46,7 +46,7 @@
         <view class="bottom-bar">
             <view class="cart-info">
                 <view class="cart-icon">🛒</view>
-                <view class="cart-count">{{ cartCount }}</view>
+                <view class="cart-count">{{ cartInfo.count }}</view>
                 <view class="cart-total">合计：¥ {{ totalPrice }}</view>
             </view>
             <view class="pay-btn" @click="goToCart">去结算</view>
@@ -57,7 +57,12 @@
 
 <script setup>
 import { ref } from 'vue'
+import { cartInfo } from '@/stores/cart'
+import { onShow } from '@dcloudio/uni-app'
 
+onShow(async () => {
+  
+})
 // 左侧分类菜单
 const menuList = ref([
     '全部商品',

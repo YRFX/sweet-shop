@@ -1,13 +1,13 @@
 <template>
   <view class="cart-page">
     <!-- 空购物车 -->
-    <view class="empty" v-if="cartInfo.length === 0">
+    <view class="empty" v-if="cartInfo.data.length === 0">
       <text>购物车还是空的～</text>
     </view>
 
     <!-- 有商品 -->
     <view class="cart-list" v-else>
-      <view class="cart-item" v-for="(item, idx) in cartInfo" :key="idx">
+      <view class="cart-item" v-for="(item, idx) in cartInfo.data" :key="idx">
         <!-- 选择框 -->
         <view class="check" @click="toggleCheck(idx)">
           <view class="circle" :class="{ checked: item.checked }"></view>
@@ -95,7 +95,7 @@ onShow(async () => {
     })
 
     // 4. 更新到页面购物车
-    cartInfo.value.list = newCart
+    cartInfo.value.data = newCart
     console.log('✅ 购物车已更新最新商品数据')
 
   } catch (err) {
@@ -107,31 +107,31 @@ onShow(async () => {
 
 // 数量+
 const plus = (idx) => {
-  cartInfo.value[idx].num++
+  cartInfo.value.data[idx].num++
   calcTotal()
 }
 
 // 数量-
 const minus = (idx) => {
-  if (cartInfo.value[idx].num <= 1) return
-  cartInfo.value[idx].num--
+  if (cartInfo.value.data[idx].num <= 1) return
+  cartInfo.value.data[idx].num--
   calcTotal()
 }
 
 // 单选
 const toggleCheck = (idx) => {
-  cartInfo.value[idx].checked = !cartInfo.value[idx].checked
+  cartInfo.value.data[idx].checked = !cartInfo.value.data[idx].checked
   calcTotal()
 }
 
 // 全选
 const isAllChecked = computed(() => {
-  return cartInfo.value.every(i => i.checked)
+  return cartInfo.value.data.every(i => i.checked)
 })
 
 const toggleAll = () => {
   let status = !isAllChecked.value
-  cartInfo.value.forEach(i => i.checked = status)
+  cartInfo.value.data.forEach(i => i.checked = status)
   calcTotal()
 }
 
@@ -139,7 +139,7 @@ const toggleAll = () => {
 const totalPrice = ref(0)
 const calcTotal = () => {
   let total = 0
-  cartInfo.value.forEach(item => {
+  cartInfo.value.data.forEach(item => {
     if (item.checked) total += item.num * 49
   })
   totalPrice.value = total.toFixed(2)
@@ -148,7 +148,7 @@ calcTotal()
 
 // 去结算
 const toPay = () => {
-  let hasChecked = cartInfo.value.some(i => i.checked)
+  let hasChecked = cartInfo.value.data.some(i => i.checked)
   if (!hasChecked) {
     uni.showToast({ title: '请选择商品', icon: 'none' })
     return
@@ -166,17 +166,17 @@ const toPay = () => {
     })
     return
   }
-  var buyGoods = []
-  cartInfo.value.forEach(i => {
-    if (i.checked) {
-      buyGoods.push({
-        id: i.product.id,
-        count: i.num
-      })
-    }
-  })
+  // var buyGoods = []
+  // cartInfo.value.data.forEach(i => {
+  //   if (i.checked) {
+  //     buyGoods.push({
+  //       id: i.productId,
+  //       count: i.num
+  //     })
+  //   }
+  // })
   uni.navigateTo({
-    url: '/pages/order/checkout?goods=' + encodeURIComponent(JSON.stringify(buyGoods))
+    url: '/pages/order/index'
   })
 }
 </script>
