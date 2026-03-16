@@ -1,13 +1,13 @@
 <template>
   <view class="cart-page">
     <!-- 空购物车 -->
-    <view class="empty" v-if="cartList.length === 0">
+    <view class="empty" v-if="cartInfo.length === 0">
       <text>购物车还是空的～</text>
     </view>
 
     <!-- 有商品 -->
     <view class="cart-list" v-else>
-      <view class="cart-item" v-for="(item, idx) in cartList" :key="idx">
+      <view class="cart-item" v-for="(item, idx) in cartInfo" :key="idx">
         <!-- 选择框 -->
         <view class="check" @click="toggleCheck(idx)">
           <view class="circle" :class="{ checked: item.checked }"></view>
@@ -54,41 +54,84 @@
 import { ref, computed } from 'vue'
 import { userInfo } from '@/stores/user'
 import { useCloud } from '@/utils/useCloud'
-const { wxLogin } = useCloud()
+import { cartInfo } from '@/stores/cart'
 
+import { onShow } from '@dcloudio/uni-app'
+const { wxLogin } = useCloud()
 // 购物车列表
-const cartList = ref([
-  { checked: true, num: 1 },
-  { checked: false, num: 1 }
-])
+// const cartList = ref([
+//   { checked: true, 
+//     product: {},
+//     num: 1 },
+//   { checked: false,
+//     product: {},
+//     num: 1 }
+// ])
+
+
+onShow(async () => {
+  // 如果购物车为空，直接返回
+  if (!cartInfo.value.data || cartInfo.value.data.length === 0) return
+
+  try {
+    // 1. 从购物车里提取所有 productId
+    const goodsIdList = cartInfo.value.data.map(item => item.productId)
+
+    // 2. 批量查询最新商品数据
+    const db = wx.cloud.database()
+    const res = await db.collection('goods')
+      .where({ _id: db.command.in(goodsIdList) })
+      .get()
+
+    const latestGoodsList = res.data || []
+
+    // 3. 把最新商品数据 合并回购物车（覆盖价格、名称等）
+    const newCart = cartInfo.value.data.map(cartItem => {
+      const goods = latestGoodsList.find(g => g._id === cartItem.productId)
+      return {
+        ...cartItem,        // 保留购物车原本的数量、id等
+        ...goods            // 覆盖最新商品信息（名称、价格、图片）
+      }
+    })
+
+    // 4. 更新到页面购物车
+    cartInfo.value.list = newCart
+    console.log('✅ 购物车已更新最新商品数据')
+
+  } catch (err) {
+    console.error('批量更新商品失败', err)
+  }
+})
+
+
 
 // 数量+
 const plus = (idx) => {
-  cartList.value[idx].num++
+  cartInfo.value[idx].num++
   calcTotal()
 }
 
 // 数量-
 const minus = (idx) => {
-  if (cartList.value[idx].num <= 1) return
-  cartList.value[idx].num--
+  if (cartInfo.value[idx].num <= 1) return
+  cartInfo.value[idx].num--
   calcTotal()
 }
 
 // 单选
 const toggleCheck = (idx) => {
-  cartList.value[idx].checked = !cartList.value[idx].checked
+  cartInfo.value[idx].checked = !cartInfo.value[idx].checked
   calcTotal()
 }
 
 // 全选
 const isAllChecked = computed(() => {
-  return cartList.value.every(i => i.checked)
+  return cartInfo.value.every(i => i.checked)
 })
 
 const toggleAll = () => {
   let status = !isAllChecked.value
-  cartList.value.forEach(i => i.checked = status)
+  cartInfo.value.forEach(i => i.checked = status)
   calcTotal()
 }
 
@@ -96,7 +139,7 @@ const toggleAll = () => {
 const totalPrice = ref(0)
 const calcTotal = () => {
   let total = 0
-  cartList.value.forEach(item => {
+  cartInfo.value.forEach(item => {
     if (item.checked) total += item.num * 49
   })
   totalPrice.value = total.toFixed(2)
@@ -105,7 +148,7 @@ calcTotal()
 
 // 去结算
 const toPay = () => {
-  let hasChecked = cartList.value.some(i => i.checked)
+  let hasChecked = cartInfo.value.some(i => i.checked)
   if (!hasChecked) {
     uni.showToast({ title: '请选择商品', icon: 'none' })
     return
@@ -123,7 +166,18 @@ const toPay = () => {
     })
     return
   }
-  uni.navigateTo({ url: '/pages/order/index' })
+  var buyGoods = []
+  cartInfo.value.forEach(i => {
+    if (i.checked) {
+      buyGoods.push({
+        id: i.product.id,
+        count: i.num
+      })
+    }
+  })
+  uni.navigateTo({
+    url: '/pages/order/checkout?goods=' + encodeURIComponent(JSON.stringify(buyGoods))
+  })
 }
 </script>
 

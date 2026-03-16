@@ -40,9 +40,11 @@ defineExpose({
   box-shadow: 0 6rpx 20rpx rgba(0, 0, 0, 0.1);
   z-index: 9999;
 }
+
 .icon {
   font-size: 36rpx;
 }
+
 .badge {
   position: absolute;
   top: -10rpx;

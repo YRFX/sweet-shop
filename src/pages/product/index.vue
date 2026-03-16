@@ -14,14 +14,14 @@
         </view>
 
         <!-- 商品信息 -->
-        <view class="info-card" v-if="goodDetail!=null">
-            <view class="title">{{goodDetail.name}}</view>
-            <view class="price">¥ {{goodDetail.price}}</view>
-            <view class="desc">¥ {{goodDetail.desc}}</view>
+        <view class="info-card" v-if="goodDetail != null">
+            <view class="title">{{ goodDetail.name }}</view>
+            <view class="price">¥ {{ goodDetail.price }}</view>
+            <view class="desc">¥ {{ goodDetail.desc }}</view>
         </view>
 
         <!-- 商品详情（纯展示，干净高级） -->
-        <view class="detail-card"  v-if="goodDetail!=null">
+        <view class="detail-card" v-if="goodDetail != null">
             <view class="label">商品介绍</view>
             <view class="content">
                 {{ goodDetail.content }}
@@ -30,14 +30,14 @@
 
         <!-- 底部购买栏 -->
         <view class="bottom-bar">
-            <view class="btn-cart" @click="addCart">加入购物车</view>
+            <view class="btn-cart" @click="addCart(goodDetail)">加入购物车</view>
             <view class="btn-buy">立即购买</view>
         </view>
 
         <!-- 浮动购物车 -->
         <view class="float-cart" @click="goToCart">
             <view class="icon">🛒</view>
-            <view class="badge" v-if="cartCount > 0">{{ cartCount }}</view>
+            <view class="badge" v-if="cartInfo.value.count > 0">{{ cartInfo.value.count }}</view>
         </view>
 
     </view>
@@ -46,6 +46,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useCloud } from '@/utils/useCloud'
+import { cartInfo } from '@/stores/cart'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 const { getGoodDetail } = useCloud()
 
@@ -55,8 +56,25 @@ const goodDetail = ref(null)
 const goodId = ref(-1)
 
 // 加入购物车
-const addCart = () => {
-    cartCount.value++
+const addCart = (item) => {
+    var isExist = false
+    for (var p of cartInfo.value.data) {
+        if (p.productId == item._id) {
+            p.num++;
+            isExist = true
+        }
+       
+    }
+    if (!isExist) {
+        cartInfo.value.data.push(
+            {
+                checked: true,
+                productId: item._id,
+                num: 1
+            },
+        )
+    }
+    cartInfo.value.count++
     uni.showToast({
         title: '已加入购物车',
         icon: 'success'
@@ -70,7 +88,7 @@ const goToCart = () => {
     })
 }
 
-const getProductDetail = (async (id)=> {
+const getProductDetail = (async (id) => {
     goodDetail.value = await getGoodDetail(id)
     console.log(goodDetail.value)
 })
