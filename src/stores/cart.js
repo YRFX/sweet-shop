@@ -7,6 +7,14 @@ const cartInfo = ref({
 })
 // 登录
 
+const addToCart = (good)=> {
+    cartInfo.value.data.push({
+        productId: good._id,
+        product: {...good},
+        num: good.count,
+        checked: true
+    })
+    cartInfo.value.count += good.count
+}
 
-
-export {  cartInfo }
+export {  cartInfo,addToCart}

@@ -51,68 +51,51 @@ import { onShow } from '@dcloudio/uni-app'
 import { userInfo } from '@/stores/user'
 import { cartInfo } from '@/stores/cart'
 
-// 接收的商品列表（id + count）
 const goodsList = ref([])
 const defaultAddress = ref({})
 const hasDefaultAddress = ref(false)
 const totalPrice = ref(0)
+const db = wx.cloud.database()
 
-// 页面加载时接收参数：商品ID + 数量
 onShow(async () => {
   if (!userInfo.value.isLogin) {
     uni.showToast({ title: '请先登录', icon: 'none' })
     return
   }
 
-  // 接收前端传过来的商品列表
-  // const buyList = JSON.parse(decodeURIComponent(options.goods))
-  // console.log('购买商品：', buyList)
-
-  // 实时从云数据库获取最新商品信息
   await loadRealGoodsData()
-
-  // 加载默认地址
   await loadDefaultAddress()
-
-  // 实时计算价格
   calcTotalPrice()
+
+  // 判断是否有地址
+  hasDefaultAddress.value = !!(defaultAddress.value && defaultAddress.value._id)
 })
 
-// 🔥 核心：根据ID实时拉取云数据库最新商品信息
+// 实时加载最新商品数据
 const loadRealGoodsData = async () => {
-  const db = wx.cloud.database()
   const result = []
-
   for (let g of cartInfo.value.data) {
-    const res = await db.collection('goods').doc(g.productId).get()
-    if (res.data) {
-      result.push({
-        ...res.data,
-        buyCount: g.num // 购买数量
-      })
-    }
+    try {
+      const res = await db.collection('goods').doc(g.productId).get()
+      if (res.data) {
+        result.push({
+          ...res.data,
+          buyCount: g.num
+        })
+      }
+    } catch (e) {}
   }
-
   goodsList.value = result
 }
 
-// 加载默认地址
+// 加载地址
 const loadDefaultAddress = async () => {
   try {
-    // const db = wx.cloud.database()
-    // const res = await db.collection('address')
-    //   .where({
-    //     _id: userInfo.value.address
-    //   })
-    //   .get()
-
-    // if (res.data.length > 0) {
-      defaultAddress.value = userInfo.value.addressInfo
-    // }
+    defaultAddress.value = userInfo.value.addressInfo || {}
   } catch (e) {}
 }
 
-// 🔥 实时计算总价
+// 计算总价
 const calcTotalPrice = () => {
   let total = 0
   goodsList.value.forEach(item => {
@@ -126,26 +109,97 @@ const goToAddress = () => {
   uni.navigateTo({ url: '/pages/address/index?isSelectMode=true' })
 }
 
-// 提交订单
-const submitOrder = () => {
+// ==============================================
+// 🔥 你要的核心逻辑：提交订单（检查待支付 + 生成订单）
+// ==============================================
+// ==============================================
+// 🔥 最终版：检查待支付订单 + 数据库重新计价 + 生成订单
+// ==============================================
+// ==============================================
+// 🔥 最终版：检查待支付订单 + 数据库重新计价 + 生成时间
+// ==============================================
+const submitOrder = async () => {
   if (!hasDefaultAddress.value) {
     uni.showToast({ title: '请选择收货地址', icon: 'none' })
     return
   }
 
-  uni.showModal({
-    title: '确认支付',
-    content: `实付：¥${totalPrice.value}`,
-    success: (res) => {
-      if (res.confirm) {
-        uni.showToast({ title: '支付成功', icon: 'success' })
+  // 1. 先检查有没有待支付订单
+  const existOrder = await db.collection('order')
+    .where({
+      userId: userInfo.value.openid,
+      status: 0 // 0=待支付
+    })
+    .limit(1)
+    .get()
 
-        // 支付成功后跳订单页
-        setTimeout(() => {
-          uni.switchTab({ url: '/pages/order/index' })
-        }, 1500)
-      }
+  if (existOrder.data.length > 0) {
+    const order = existOrder.data[0]
+    uni.navigateTo({
+      url: `/pages/order/detail?id=${order._id}`
+    })
+    return
+  }
+
+  // ==============================================
+  // 🔥 核心：从数据库重新查询商品 + 重新计算价格（安全版）
+  // ==============================================
+  let realTotalPrice = 0
+  const orderGoodsList = []
+
+  for (const item of cartInfo.value.data) {
+    try {
+      // 从数据库查最新商品
+      const goodsRes = await db.collection('goods').doc(item.productId).get()
+      const goods = goodsRes.data
+
+      if (!goods) continue
+
+      // 数据库价格 × 购买数量
+      const realPrice = goods.price
+      const num = item.num
+
+      // 累加到订单总价
+      realTotalPrice += realPrice * num
+
+      // 放入订单商品列表
+      orderGoodsList.push({
+        _id: goods._id,
+        name: goods.name,
+        price: realPrice, // 🔥 数据库真实价格
+        buyCount: num
+      })
+    } catch (e) {
+      console.error('商品查询失败', e)
     }
+  }
+
+  // 无商品 → 拦截
+  if (orderGoodsList.length === 0) {
+    uni.showToast({ title: '商品异常', icon: 'none' })
+    return
+  }
+
+  // ==============================================
+  // 🔥 生成订单（带时间 + 真实金额）
+  // ==============================================
+  const orderData = {
+    userId: userInfo.value.openid,
+    address: defaultAddress.value,
+    goods: orderGoodsList,        // 🔥 从数据库查的商品
+    totalPrice: realTotalPrice,  // 🔥 从数据库重算的金额
+    status: 0,                   // 待支付
+    createTime: new Date(),      // ✅ 生成时间（标准时间）
+    createTimeStamp: Date.now()  // ✅ 时间戳（方便排序/查询）
+  }
+
+  const addRes = await db.collection('order').add({
+    data: orderData
+  })
+
+  // 跳订单详情页
+  uni.navigateTo({
+    url: `/pages/order/detail?id=${addRes._id}`
   })
 }
 </script>

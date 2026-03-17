@@ -1,15 +1,17 @@
 <template>
     <view class="category-page">
 
-        <!-- 顶部搜索框 -->
-        <view class="search-box">
-            <text class="search-icon">🔍</text>
-            <text class="search-placeholder">搜索甜品、蛋糕...</text>
+        <!-- 搜索框 - 固定置顶 -->
+        <view class="search-box-sticky">
+            <view class="search-box">
+                <text class="search-icon">🔍</text>
+                <text class="search-placeholder">搜索甜品、蛋糕...</text>
+            </view>
         </view>
 
-        <!-- 左右布局容器 -->
+        <!-- 左右布局 -->
         <view class="content-box">
-            <!-- 左侧分类菜单 -->
+            <!-- 左侧菜单 -->
             <view class="left-menu">
                 <view class="menu-item" :class="{ active: activeIndex === index }" v-for="(item, index) in menuList"
                     :key="index" @click="selectMenu(index)">
@@ -17,39 +19,58 @@
                 </view>
             </view>
 
-            <!-- 右侧商品列表（一行一列） -->
+            <!-- 右侧商品列表 -->
             <view class="right-goods">
-                <view class="goods-item" v-for="i in 4" :key="i">
-                    <view class="goods-img"></view>
+                <view class="goods-item" v-for="good in goodsList" :key="good._id">
+                    <view class="goods-img" :style="{ backgroundImage: 'url(' + good.images[0] + ')' }"></view>
                     <view class="goods-info">
-                        <view class="goods-name">草莓慕斯蛋糕</view>
-                        <view class="goods-price">¥ 49.00</view>
+                        <view class="goods-name">{{ good.name }}</view>
+                        <view class="goods-price">¥ {{ Number(good.price).toFixed(2) }}</view>
                     </view>
-                    <!-- 加入购物车按钮 -->
-                    <view class="add-cart" @click="addCart(i)">+</view>
+                    <view class="choose-spec" @click="openSpec(good)">选规格</view>
                 </view>
             </view>
         </view>
 
-
-<!-- ====================== -->
-    <!-- 直接在这里放悬浮购物车 ✅ -->
-    <!-- ====================== -->
-    <view class="float-cart" @click="goToCart">
-      <view class="icon">🛒</view>
-      <view class="badge" v-if="cartInfo.count > 0">{{ cartInfo.count }}</view>
-    </view>
-
-        <!-- ====================== -->
-        <!-- 🔥 底部购物车合计栏（新加） -->
-        <!-- ====================== -->
+        <!-- 底部购物车合计栏 -->
         <view class="bottom-bar">
             <view class="cart-info">
                 <view class="cart-icon">🛒</view>
-                <view class="cart-count">{{ cartInfo.count }}</view>
-                <view class="cart-total">合计：¥ {{ totalPrice }}</view>
+                <view class="cart-count" v-if="cartInfo.count > 0">{{ cartInfo.count }}</view>
+
+                <!-- 🔥 显示全部商品，横向滚动 + 不超出高度 -->
+                <view class="cart-goods-list" v-if="cartInfo.data.length > 0">
+                    <view class="cart-goods-item" v-for="(item, index) in cartInfo.data" :key="index">
+                        {{ item.product?.name }} x{{ item.num }}
+                    </view>
+                </view>
+                <view class="cart-empty" v-else>购物车为空</view>
+
             </view>
             <view class="pay-btn" @click="goToCart">去结算</view>
+        </view>
+
+        <!-- 半屏规格弹窗 -->
+        <view class="spec-mask" v-if="showSpec" @click="closeSpec">
+            <view class="spec-panel" @click.stop>
+                <view class="spec-goods">
+                    <view class="spec-img" :style="{ backgroundImage: 'url(' + currentGoods.images[0] + ')' }"></view>
+                    <view class="spec-info">
+                        <view class="spec-name">{{ currentGoods.name }}</view>
+                    </view>
+                </view>
+
+                <view class="spec-count">
+                    <text>购买数量</text>
+                    <view class="count-box">
+                        <view class="btn" @click="changeNum(-1)">-</view>
+                        <view class="num">{{ buyNum }}</view>
+                        <view class="btn" @click="changeNum(1)">+</view>
+                    </view>
+                </view>
+
+                <view class="spec-confirm" @click="confirmAddCart">确认加入购物车</view>
+            </view>
         </view>
 
     </view>
@@ -57,62 +78,114 @@
 
 <script setup>
 import { ref } from 'vue'
-import { cartInfo } from '@/stores/cart'
+
 import { onShow } from '@dcloudio/uni-app'
+import { cartInfo, addToCart } from '@/stores/cart'
 
-onShow(async () => {
-  
-})
-// 左侧分类菜单
+const db = wx.cloud.database()
+
+// 分类菜单
 const menuList = ref([
-    '全部商品',
-    '蛋糕系列',
-    '甜品小食',
-    '网红爆款',
-    '饮品',
-    '礼盒定制'
+    '全部商品', '蛋糕系列', '甜品小食', '网红爆款', '饮品', '礼盒定制'
 ])
-
 const activeIndex = ref(0)
 const selectMenu = (index) => {
     activeIndex.value = index
+    loadGoodsList() // 切换分类刷新商品
 }
 
-// 购物车数量 + 合计金额
-const cartCount = ref(0)
-const totalPrice = ref(0)
+// 商品列表（从云数据库读取）
+const goodsList = ref([])
 
-// 加入购物车
-const addCart = (i) => {
-    cartCount.value++
-    totalPrice.value = (totalPrice.value + 49.0).toFixed(2)
-    uni.showToast({
-        title: '已加入购物车',
-        icon: 'success'
+// 页面显示时加载线上商品
+onShow(() => {
+    loadGoodsList()
+})
+
+// ==============================================
+// 🔥 核心：从云数据库加载真实商品
+// ==============================================
+const loadGoodsList = async () => {
+    try {
+        let condition = {}
+
+        // 分类筛选逻辑
+        if (activeIndex.value === 1) condition.category = '蛋糕'
+        if (activeIndex.value === 2) condition.category = '甜品'
+        if (activeIndex.value === 3) condition.category = '网红爆款'
+        if (activeIndex.value === 4) condition.category = '饮品'
+        if (activeIndex.value === 5) condition.category = '礼盒定制'
+
+        const res = await db.collection('goods').where(condition).get()
+        goodsList.value = res.data
+    } catch (e) {
+        console.error('加载商品失败', e)
+    }
+}
+
+// 规格弹窗
+const showSpec = ref(false)
+const currentGoods = ref({})
+const buyNum = ref(1)
+
+const openSpec = (good) => {
+    currentGoods.value = good
+    buyNum.value = 1
+    showSpec.value = true
+}
+const closeSpec = () => { showSpec.value = false }
+
+const changeNum = (step) => {
+    let num = buyNum.value + step
+    if (num < 1) num = 1
+    buyNum.value = num
+}
+
+// 加入购物车（使用云数据库 _id）
+const confirmAddCart = () => {
+    console.log({
+        _id: currentGoods.value._id,
+        name: currentGoods.value.name,
+        price: currentGoods.value.price,
+        count: buyNum.value
     })
+    addToCart({
+        _id: currentGoods.value._id,
+        name: currentGoods.value.name,
+        price: currentGoods.value.price,
+        count: buyNum.value
+    })
+    closeSpec()
+    uni.showToast({ title: '加入成功', icon: 'success' })
 }
 
-// 跳转到购物车页面
+// 去结算
 const goToCart = () => {
-    uni.switchTab({
-        url: '/pages/cart/index'
-    })
+    uni.switchTab({ url: '/pages/cart/index' })
 }
 </script>
 
 <style scoped lang="scss">
-/* 整体页面 */
+/* 页面整体 */
 .category-page {
     width: 100%;
     min-height: 100vh;
     background: #fdfbf7;
-    padding: 30rpx;
-    box-sizing: border-box;
     padding-bottom: 120rpx;
-    /* 给底部栏留出空间 */
+    box-sizing: border-box;
 }
 
-/* 搜索框 */
+/* 搜索栏 - 固定置顶 */
+.search-box-sticky {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #fdfbf7;
+    padding: 20rpx 30rpx;
+    z-index: 99;
+}
+
 .search-box {
     width: 100%;
     height: 80rpx;
@@ -122,7 +195,6 @@ const goToCart = () => {
     align-items: center;
     padding: 0 30rpx;
     box-sizing: border-box;
-    margin-bottom: 30rpx;
     box-shadow: 0 3rpx 15rpx rgba(0, 0, 0, 0.04);
 
     .search-icon {
@@ -136,16 +208,17 @@ const goToCart = () => {
     }
 }
 
-/* 左右布局 */
+/* 内容布局 */
 .content-box {
     display: flex;
-    height: calc(100vh - 200rpx);
+    padding-top: 120rpx;
+    height: calc(100vh - 220rpx);
 }
 
 /* 左侧菜单 */
 .left-menu {
     width: 180rpx;
-    padding-right: 20rpx;
+    padding: 0 20rpx;
     box-sizing: border-box;
 
     .menu-item {
@@ -171,7 +244,7 @@ const goToCart = () => {
 .right-goods {
     flex: 1;
     overflow-y: auto;
-    padding-left: 10rpx;
+    padding-right: 20rpx;
 }
 
 .goods-item {
@@ -188,7 +261,9 @@ const goToCart = () => {
 .goods-img {
     width: 180rpx;
     height: 100%;
-    background: #f5f1ec;
+    background-size: cover;
+    background-position: center;
+    background-color: #f5f1ec;
 }
 
 .goods-info {
@@ -211,69 +286,173 @@ const goToCart = () => {
     }
 }
 
-.add-cart {
+.choose-spec {
     position: absolute;
     right: 20rpx;
     bottom: 20rpx;
-    width: 50rpx;
-    height: 50rpx;
+    padding: 10rpx 20rpx;
     background: #f5e9e2;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border-radius: 30rpx;
+    font-size: 24rpx;
     color: #997c6c;
-    font-size: 32rpx;
 }
 
-/* ====================== */
-/* 🔥 底部购物车合计栏 */
-/* ====================== */
+/* 底部购物车 */
 .bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100rpx;
+  background: #fff;
+  box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30rpx;
+  box-sizing: border-box;
+  z-index: 10;
+
+  .cart-info {
+    display: flex;
+    align-items: center;
+    height: 100rpx;
+    max-width: 70%;
+  }
+
+  .cart-icon {
+    font-size: 36rpx;
+    margin-right: 12rpx;
+  }
+  .cart-count {
+    background: #f56c6c;
+    color: #fff;
+    font-size: 22rpx;
+    padding: 2rpx 8rpx;
+    border-radius: 20rpx;
+    margin-right: 10rpx;
+  }
+
+  /* 🔥 全部商品横向显示 + 溢出隐藏 + 不超出父容器 */
+  .cart-goods-list {
+    display: flex;
+    align-items: center;
+    height: 100rpx;
+    overflow: hidden;
+    white-space: nowrap;
+    padding-left: 4rpx;
+  }
+  .cart-goods-item {
+    font-size: 24rpx;
+    color: #666;
+    margin-right: 12rpx;
+    line-height: 100rpx;
+    white-space: nowrap;
+  }
+
+  .cart-empty {
+    font-size: 24rpx;
+    color: #999;
+    line-height: 100rpx;
+  }
+
+  .pay-btn {
+    background: #f5e9e2;
+    color: #997c6c;
+    font-size: 26rpx;
+    font-weight: bold;
+    padding: 16rpx 30rpx;
+    border-radius: 50rpx;
+  }
+}
+
+/* 规格弹窗 */
+.spec-mask {
     position: fixed;
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 100rpx;
-    background: #fff;
-    box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 30rpx;
-    box-sizing: border-box;
+    align-items: flex-end;
+    z-index: 999;
+}
 
-    .cart-info {
+.spec-panel {
+    width: 100%;
+    background: #fff;
+    border-radius: 24rpx 24rpx 0 0;
+    padding: 40rpx 30rpx;
+    box-sizing: border-box;
+}
+
+.spec-goods {
+    display: flex;
+    margin-bottom: 40rpx;
+
+    .spec-img {
+        width: 150rpx;
+        height: 150rpx;
+        background-size: cover;
+        background-position: center;
+        background-color: #f5f1ec;
+        border-radius: 16rpx;
+        margin-right: 24rpx;
+    }
+
+    .spec-info {
+        flex: 1;
         display: flex;
         align-items: center;
 
-        .cart-icon {
-            font-size: 36rpx;
-            margin-right: 12rpx;
-        }
-
-        .cart-count {
-            background: #f56c6c;
-            color: #fff;
-            font-size: 22rpx;
-            padding: 2rpx 8rpx;
-            border-radius: 20rpx;
-            margin-right: 20rpx;
-        }
-
-        .cart-total {
-            font-size: 26rpx;
+        .spec-name {
+            font-size: 32rpx;
             color: #333;
         }
     }
+}
 
-    .pay-btn {
-        background: #f5e9e2;
-        color: #997c6c;
-        font-size: 26rpx;
-        font-weight: bold;
-        padding: 16rpx 30rpx;
-        border-radius: 50rpx;
+.spec-count {
+    margin-bottom: 50rpx;
+
+    text {
+        font-size: 28rpx;
+        margin-bottom: 20rpx;
+        display: block;
     }
+
+    .count-box {
+        display: flex;
+        align-items: center;
+
+        .btn {
+            width: 60rpx;
+            height: 60rpx;
+            border: 1rpx solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30rpx;
+        }
+
+        .num {
+            width: 80rpx;
+            text-align: center;
+            font-size: 30rpx;
+        }
+    }
+}
+
+.spec-confirm {
+    height: 88rpx;
+    background: #f5e9e2;
+    color: #997c6c;
+    border-radius: 44rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30rpx;
+    font-weight: bold;
 }
 </style>

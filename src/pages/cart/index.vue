@@ -14,12 +14,12 @@
         </view>
 
         <!-- 商品图片 -->
-        <view class="goods-img"></view>
+        <view class="goods-img" :style="{ backgroundImage: 'url(' + (item.images?.[0] || '') + ')' }"></view>
 
         <!-- 商品信息 -->
         <view class="goods-info">
-          <view class="name">草莓慕斯蛋糕</view>
-          <view class="price">¥ 49.00</view>
+          <view class="name">{{ item.name }}</view>
+          <view class="price">¥ {{ Number(item.price).toFixed(2) }}</view>
         </view>
 
         <!-- 数量 -->
@@ -55,55 +55,42 @@ import { ref, computed } from 'vue'
 import { userInfo } from '@/stores/user'
 import { useCloud } from '@/utils/useCloud'
 import { cartInfo } from '@/stores/cart'
-
 import { onShow } from '@dcloudio/uni-app'
+
 const { wxLogin } = useCloud()
-// 购物车列表
-// const cartList = ref([
-//   { checked: true, 
-//     product: {},
-//     num: 1 },
-//   { checked: false,
-//     product: {},
-//     num: 1 }
-// ])
 
-
+// 页面显示时刷新商品数据
 onShow(async () => {
-  // 如果购物车为空，直接返回
   if (!cartInfo.value.data || cartInfo.value.data.length === 0) return
 
   try {
-    // 1. 从购物车里提取所有 productId
     const goodsIdList = cartInfo.value.data.map(item => item.productId)
-
-    // 2. 批量查询最新商品数据
     const db = wx.cloud.database()
+
     const res = await db.collection('goods')
       .where({ _id: db.command.in(goodsIdList) })
       .get()
 
     const latestGoodsList = res.data || []
 
-    // 3. 把最新商品数据 合并回购物车（覆盖价格、名称等）
     const newCart = cartInfo.value.data.map(cartItem => {
       const goods = latestGoodsList.find(g => g._id === cartItem.productId)
+      if (!goods) return cartItem
+
       return {
-        ...cartItem,        // 保留购物车原本的数量、id等
-        ...goods            // 覆盖最新商品信息（名称、价格、图片）
+        ...cartItem,
+        ...goods,
+        checked: cartItem.checked ?? true // 保留选中状态
       }
     })
 
-    // 4. 更新到页面购物车
     cartInfo.value.data = newCart
-    console.log('✅ 购物车已更新最新商品数据')
+    calcTotal()
 
   } catch (err) {
-    console.error('批量更新商品失败', err)
+    console.error('加载商品失败', err)
   }
 })
-
-
 
 // 数量+
 const plus = (idx) => {
@@ -126,55 +113,51 @@ const toggleCheck = (idx) => {
 
 // 全选
 const isAllChecked = computed(() => {
-  return cartInfo.value.data.every(i => i.checked)
+  return cartInfo.value.data.length && cartInfo.value.data.every(i => i.checked)
 })
 
 const toggleAll = () => {
-  let status = !isAllChecked.value
+  const status = !isAllChecked.value
   cartInfo.value.data.forEach(i => i.checked = status)
   calcTotal()
 }
 
 // 计算总价
-const totalPrice = ref(0)
+const totalPrice = ref('0.00')
 const calcTotal = () => {
   let total = 0
   cartInfo.value.data.forEach(item => {
-    if (item.checked) total += item.num * 49
+    if (item.checked) {
+      const price = Number(item.price) || 0
+      total += item.num * price
+    }
   })
   totalPrice.value = total.toFixed(2)
 }
+
 calcTotal()
 
 // 去结算
 const toPay = () => {
-  let hasChecked = cartInfo.value.data.some(i => i.checked)
+  const hasChecked = cartInfo.value.data.some(i => i.checked)
   if (!hasChecked) {
     uni.showToast({ title: '请选择商品', icon: 'none' })
     return
   }
+
   if (!userInfo.value.isLogin) {
     uni.showModal({
-      title: '微信登录',
-      content: '是否授权微信快捷登录',
+      title: '请先登录',
+      content: '是否授权微信快捷登录？',
       success: (res) => {
         if (res.confirm) {
           wxLogin()
-          uni.showToast({ title: '登录成功', icon: 'success' })
         }
       }
     })
     return
   }
-  // var buyGoods = []
-  // cartInfo.value.data.forEach(i => {
-  //   if (i.checked) {
-  //     buyGoods.push({
-  //       id: i.productId,
-  //       count: i.num
-  //     })
-  //   }
-  // })
+
   uni.navigateTo({
     url: '/pages/order/index'
   })
@@ -189,14 +172,12 @@ const toPay = () => {
   padding-bottom: 120rpx;
 }
 
-/* 空购物车 */
 .empty {
   padding: 200rpx 0;
   text-align: center;
   color: #999;
 }
 
-/* 商品项 */
 .cart-item {
   display: flex;
   align-items: center;
@@ -226,6 +207,8 @@ const toPay = () => {
   width: 140rpx;
   height: 140rpx;
   background: #f5f1ec;
+  background-size: cover;
+  background-position: center;
   border-radius: 16rpx;
 }
 
@@ -245,7 +228,6 @@ const toPay = () => {
   margin-top: 10rpx;
 }
 
-/* 数量 */
 .num-box {
   display: flex;
   align-items: center;
@@ -265,7 +247,6 @@ const toPay = () => {
   padding: 0 16rpx;
 }
 
-/* 底部 */
 .bottom-bar {
   position: fixed;
   left: 0;
