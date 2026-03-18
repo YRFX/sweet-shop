@@ -6,7 +6,7 @@
 				"navigationBarTitleText": "首页",
 				"navigationStyle": "custom",
 				"enablePullDownRefresh": false,
-				"titleNView": false  
+				"titleNView": false
 			}
 		},
 		{
@@ -50,6 +50,18 @@
 			"style": {
 				"navigationBarTitleText": "结算"
 			}
+		},
+		{
+			"path": "pages/order/detail",
+			"style": {
+				"navigationBarTitleText": "订单界面"
+			}
+		},
+		{
+			"path": "pages/order/list",
+			"style": {
+				"navigationBarTitleText": "订单列表"
+			}
 		}
 	],
 	"globalStyle": {
@@ -59,26 +71,19 @@
 		"backgroundColor": "#f8f8f8"
 	},
 	"tabBar": {
-		"color": "#666",
-		"selectedColor": "#ff7a7c",
-		"borderStyle": "black",
-		"backgroundColor": "#ffffff",
+		"custom": true,
 		"list": [
 			{
-				"pagePath": "pages/home/index",
-				"text": "首页"
+				"pagePath": "pages/home/index"
 			},
 			{
-				"pagePath": "pages/category/index",
-				"text": "甜品"
+				"pagePath": "pages/category/index"
 			},
 			{
-				"pagePath": "pages/cart/index",
-				"text": "购物车"
+				"pagePath": "pages/cart/index"
 			},
 			{
-				"pagePath": "pages/mine/index",
-				"text": "我的"
+				"pagePath": "pages/mine/index"
 			}
 		]
 	}

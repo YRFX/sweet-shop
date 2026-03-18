@@ -9,6 +9,8 @@
       </view>
 
       <view class="addr">
+        <!-- ✅ 修复：订单号位置 -->
+        <view>订单号：{{ order.orderNo }}</view>
         <view>收货人：{{ order.address?.name }}</view>
         <view>电话：{{ order.address?.phone }}</view>
         <view>地址：{{ order.address?.address }}</view>
@@ -35,7 +37,8 @@
 </template>
 
 <script setup>
-import { ref, onLoad } from 'vue'
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import { userInfo } from '@/stores/user'
 const db = wx.cloud.database()
 
@@ -47,16 +50,25 @@ onLoad(async (options) => {
   order.value = res.data
 })
 
-// 取消订单
+// 取消订单 → 取消后返回结算页
 const cancelOrder = async () => {
-  await db.collection('orders').doc(order.value._id).update({
-    data: { status: 2 }
-  })
-  order.value.status = 2
-  uni.showToast({ title: '已取消' })
+  try {
+    await db.collection('orders').doc(order.value._id).update({
+      data: { status: 2 }
+    })
+    order.value.status = 2
+    uni.showToast({ title: '已取消订单' })
+
+    // ✅ 自动返回上一页
+    setTimeout(() => {
+      uni.navigateBack()
+    }, 1000)
+  } catch (err) {
+    uni.showToast({ title: '取消失败', icon: 'none' })
+  }
 }
 
-// 支付（模拟 → 成功后改为已支付）
+// 支付（模拟）
 const toPay = async () => {
   wx.requestPayment({
     timeStamp: '',

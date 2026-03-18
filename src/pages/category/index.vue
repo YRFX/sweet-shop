@@ -99,6 +99,14 @@ const goodsList = ref([])
 
 // 页面显示时加载线上商品
 onShow(() => {
+    const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  if (currentPage && currentPage.getTabBar) {
+    const tabBar = currentPage.getTabBar()
+    if (tabBar) {
+      tabBar.setData({ selected: 1 }) // ✅ 甜品 = 1
+    }
+  }
     loadGoodsList()
 })
 
@@ -212,6 +220,7 @@ const goToCart = () => {
 .content-box {
     display: flex;
     padding-top: 120rpx;
+    padding-bottom: 46px;
     height: calc(100vh - 220rpx);
 }
 
@@ -299,71 +308,73 @@ const goToCart = () => {
 
 /* 底部购物车 */
 .bottom-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100rpx;
-  background: #fff;
-  box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 30rpx;
-  box-sizing: border-box;
-  z-index: 10;
-
-  .cart-info {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 46px;
+    height: 100rpx;
+    background: #fff;
+    box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
     display: flex;
     align-items: center;
-    height: 100rpx;
-    max-width: 70%;
-  }
+    justify-content: space-between;
+    padding: 0 30rpx;
+    box-sizing: border-box;
+    z-index: 10;
 
-  .cart-icon {
-    font-size: 36rpx;
-    margin-right: 12rpx;
-  }
-  .cart-count {
-    background: #f56c6c;
-    color: #fff;
-    font-size: 22rpx;
-    padding: 2rpx 8rpx;
-    border-radius: 20rpx;
-    margin-right: 10rpx;
-  }
+    .cart-info {
+        display: flex;
+        align-items: center;
+        height: 100rpx;
+        max-width: 70%;
+    }
 
-  /* 🔥 全部商品横向显示 + 溢出隐藏 + 不超出父容器 */
-  .cart-goods-list {
-    display: flex;
-    align-items: center;
-    height: 100rpx;
-    overflow: hidden;
-    white-space: nowrap;
-    padding-left: 4rpx;
-  }
-  .cart-goods-item {
-    font-size: 24rpx;
-    color: #666;
-    margin-right: 12rpx;
-    line-height: 100rpx;
-    white-space: nowrap;
-  }
+    .cart-icon {
+        font-size: 36rpx;
+        margin-right: 12rpx;
+    }
 
-  .cart-empty {
-    font-size: 24rpx;
-    color: #999;
-    line-height: 100rpx;
-  }
+    .cart-count {
+        background: #f56c6c;
+        color: #fff;
+        font-size: 22rpx;
+        padding: 2rpx 8rpx;
+        border-radius: 20rpx;
+        margin-right: 10rpx;
+    }
 
-  .pay-btn {
-    background: #f5e9e2;
-    color: #997c6c;
-    font-size: 26rpx;
-    font-weight: bold;
-    padding: 16rpx 30rpx;
-    border-radius: 50rpx;
-  }
+    /* 🔥 全部商品横向显示 + 溢出隐藏 + 不超出父容器 */
+    .cart-goods-list {
+        display: flex;
+        align-items: center;
+        height: 100rpx;
+        overflow: hidden;
+        white-space: nowrap;
+        padding-left: 4rpx;
+    }
+
+    .cart-goods-item {
+        font-size: 24rpx;
+        color: #666;
+        margin-right: 12rpx;
+        line-height: 100rpx;
+        white-space: nowrap;
+    }
+
+    .cart-empty {
+        font-size: 24rpx;
+        color: #999;
+        line-height: 100rpx;
+    }
+
+    .pay-btn {
+        background: #f5e9e2;
+        color: #997c6c;
+        font-size: 26rpx;
+        font-weight: bold;
+        padding: 16rpx 30rpx;
+        border-radius: 50rpx;
+    }
 }
 
 /* 规格弹窗 */
@@ -385,6 +396,7 @@ const goToCart = () => {
     border-radius: 24rpx 24rpx 0 0;
     padding: 40rpx 30rpx;
     box-sizing: border-box;
+    padding-bottom: 50px;
 }
 
 .spec-goods {
@@ -454,5 +466,9 @@ const goToCart = () => {
     justify-content: center;
     font-size: 30rpx;
     font-weight: bold;
+}
+page {
+  padding-bottom: 46px;
+  box-sizing: border-box;
 }
 </style>

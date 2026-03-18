@@ -5,7 +5,7 @@
     <view class="address-section" @click="goToAddress">
       <view>
         <view class="default-tag" v-if="defaultAddress._id == userInfo.address">上次用过</view>
-        <view class="name">姓名：{{defaultAddress.name }}</view>
+        <view class="name">姓名：{{ defaultAddress.name }}</view>
         <view class="phone">联系电话：{{ defaultAddress.phone }}</view>
         <view class="addr">收货地址：{{ defaultAddress.address }}</view>
       </view>
@@ -58,6 +58,7 @@ const totalPrice = ref(0)
 const db = wx.cloud.database()
 
 onShow(async () => {
+
   if (!userInfo.value.isLogin) {
     uni.showToast({ title: '请先登录', icon: 'none' })
     return
@@ -83,7 +84,7 @@ const loadRealGoodsData = async () => {
           buyCount: g.num
         })
       }
-    } catch (e) {}
+    } catch (e) { }
   }
   goodsList.value = result
 }
@@ -92,7 +93,7 @@ const loadRealGoodsData = async () => {
 const loadDefaultAddress = async () => {
   try {
     defaultAddress.value = userInfo.value.addressInfo || {}
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // 计算总价
@@ -125,7 +126,7 @@ const submitOrder = async () => {
   }
 
   // 1. 先检查有没有待支付订单
-  const existOrder = await db.collection('order')
+  const existOrder = await db.collection('orders')
     .where({
       userId: userInfo.value.openid,
       status: 0 // 0=待支付
@@ -135,9 +136,21 @@ const submitOrder = async () => {
 
   if (existOrder.data.length > 0) {
     const order = existOrder.data[0]
-    uni.navigateTo({
-      url: `/pages/order/detail?id=${order._id}`
+
+    // ✅ 提示用户：有待支付订单，请先处理
+    uni.showToast({
+      title: '您有待支付订单，请先处理',
+      icon: 'none',
+      duration: 2000
     })
+
+    // 延迟跳转，让用户看清提示
+    setTimeout(() => {
+      uni.navigateTo({
+        url: `/pages/order/detail?id=${order._id}`
+      })
+    }, 1200)
+
     return
   }
 
@@ -181,11 +194,31 @@ const submitOrder = async () => {
   }
 
   // ==============================================
+  // 生成订单号（年月日时分秒 + 3位随机数）
+  // ==============================================
+  const createOrderNo = () => {
+    const date = new Date()
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hour = String(date.getHours()).padStart(2, '0')
+    const minute = String(date.getMinutes()).padStart(2, '0')
+    const second = String(date.getSeconds()).padStart(2, '0')
+    const random = String(Math.floor(Math.random() * 900 + 100)) // 3位随机数
+
+    return `${year}${month}${day}${hour}${minute}${second}${random}`
+  }
+
+  // 使用
+  const orderNo = createOrderNo()
+
+  // ==============================================
   // 🔥 生成订单（带时间 + 真实金额）
   // ==============================================
   const orderData = {
     userId: userInfo.value.openid,
     address: defaultAddress.value,
+    orderNo: orderNo,
     goods: orderGoodsList,        // 🔥 从数据库查的商品
     totalPrice: realTotalPrice,  // 🔥 从数据库重算的金额
     status: 0,                   // 待支付
@@ -193,7 +226,7 @@ const submitOrder = async () => {
     createTimeStamp: Date.now()  // ✅ 时间戳（方便排序/查询）
   }
 
-  const addRes = await db.collection('order').add({
+  const addRes = await db.collection('orders').add({
     data: orderData
   })
 
@@ -229,11 +262,31 @@ const submitOrder = async () => {
     margin-bottom: 10rpx;
   }
 
-  .name { font-size: 30rpx; font-weight: 500; }
-  .phone { font-size: 26rpx; color: #666; margin: 6rpx 0; }
-  .addr { font-size: 26rpx; color: #999; }
-  .no-address { color: #ff7a7c; font-size: 28rpx; }
-  .arrow { font-size: 28rpx; color: #ccc; }
+  .name {
+    font-size: 30rpx;
+    font-weight: 500;
+  }
+
+  .phone {
+    font-size: 26rpx;
+    color: #666;
+    margin: 6rpx 0;
+  }
+
+  .addr {
+    font-size: 26rpx;
+    color: #999;
+  }
+
+  .no-address {
+    color: #ff7a7c;
+    font-size: 28rpx;
+  }
+
+  .arrow {
+    font-size: 28rpx;
+    color: #ccc;
+  }
 }
 
 .goods-section {
@@ -246,12 +299,26 @@ const submitOrder = async () => {
     padding: 24rpx 0;
     border-bottom: 1rpx solid #f0e6e2;
 
-    &:last-child { border-bottom: none; }
+    &:last-child {
+      border-bottom: none;
+    }
   }
 
-  .name { font-size: 30rpx; color: #333; }
-  .price { font-size: 30rpx;color: #ff7a7c; font-weight: bold; }
-  .count { font-size: 30rpx;color: #666; }
+  .name {
+    font-size: 30rpx;
+    color: #333;
+  }
+
+  .price {
+    font-size: 30rpx;
+    color: #ff7a7c;
+    font-weight: bold;
+  }
+
+  .count {
+    font-size: 30rpx;
+    color: #666;
+  }
 }
 
 .price-section {
@@ -281,7 +348,7 @@ const submitOrder = async () => {
   right: 0;
   background: #fff;
   padding: 20rpx 30rpx;
-  box-shadow: 0 -2rpx 10rpx rgba(0,0,0,0.05);
+  box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
 
   .btn {
     height: 88rpx;

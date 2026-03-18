@@ -16,6 +16,16 @@
         {{ userInfo.isLogin ? userInfo.nickName+' 您好' : '游客 点击登录' }}
       </view>
     </view>
+
+    <!-- 自提 / 配送 切换 -->
+<view class="pick-delivery">
+  <view class="tab {{ selectedType == 0 ? 'active' : '' }}" @click="selectedType = 0">
+    <text>自提</text>
+  </view>
+  <view class="tab {{ selectedType == 1 ? 'active' : '' }}" @click="selectedType = 1">
+    <text>配送</text>
+  </view>
+</view>
     
     <!-- 4. 热销产品 -->
     <view class="hot-title">热销产品</view>
@@ -28,7 +38,6 @@
     </view>
 
    <CartFloat></CartFloat>
-
   </view>
 </template>
 
@@ -36,7 +45,7 @@
 import CartFloat from '../../components/CartFloat.vue';
 import { userInfo } from '../../stores/user';
 import { ref } from 'vue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useCloud } from '@/utils/useCloud'
 const { wxLogin } = useCloud()
 const { getGoodsList } = useCloud()
@@ -58,6 +67,17 @@ const toLogin = () => {
 
 
 const promoteGoodsList = ref([])
+
+onShow(() => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  if (currentPage && currentPage.getTabBar) {
+    const tabBar = currentPage.getTabBar()
+    if (tabBar) {
+      tabBar.setData({ selected: 0 }) // ✅ 首页 = 0
+    }
+  }
+})
 
 // 页面加载时读取云数据
 onLoad(async () => {
@@ -197,5 +217,33 @@ const goToAddress = () => {
   color: #c89f82;
   font-size: 26rpx;
   font-weight: bold;
+}
+
+.pick-delivery {
+  display: flex;
+  margin: 30rpx 0;
+  background: #f5f1ec;
+  border-radius: 20rpx;
+  padding: 8rpx;
+  box-sizing: border-box;
+}
+.pick-delivery .tab {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  color: #999;
+  transition: all 0.2s ease;
+}
+.pick-delivery .tab.active {
+  background: #ffffff;
+  color: #c89f82;
+  font-weight: bold;
+  box-shadow: 0 3rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+.page {
+  padding-bottom: 46px;
+  box-sizing: border-box;
 }
 </style>

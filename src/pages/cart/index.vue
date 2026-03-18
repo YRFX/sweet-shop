@@ -31,21 +31,36 @@
       </view>
     </view>
 
-    <!-- 底部栏 -->
+    <!-- 底部栏 → 两行布局 -->
     <view class="bottom-bar">
-      <!-- 全选 -->
-      <view class="all-check" @click="toggleAll">
-        <view class="circle" :class="{ checked: isAllChecked }"></view>
-        <text>全选</text>
+      <!-- 第一行：取货方式 + 清空 -->
+      <view class="row1">
+        <view class="pick-type">
+          <!-- 这里改成正确的 Vue 动态 class 写法 -->
+          <view class="item" :class="{ active: type === 0 }" @click="type = 0">
+            <text>自提</text>
+          </view>
+          <view class="item" :class="{ active: type === 1 }" @click="type = 1">
+            <text>配送</text>
+          </view>
+        </view>
+        <view class="clear-btn" @click="clearCart">清空购物车</view>
       </view>
 
-      <!-- 合计 -->
-      <view class="total">
-        合计：<text>¥ {{ totalPrice }}</text>
-      </view>
+      <!-- 第二行：全选 + 合计 + 结算 -->
+      <view class="row2">
+        <view class="all-check" @click="toggleAll">
+          <view class="circle" :class="{ checked: isAllChecked }"></view>
+          <text>全选</text>
+        </view>
 
-      <!-- 结算 -->
-      <view class="pay" @click="toPay">去结算</view>
+        <view class="right-group">
+          <view class="total">
+            合计：<text>¥ {{ totalPrice }}</text>
+          </view>
+          <view class="pay" @click="toPay">去结算</view>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -58,35 +73,40 @@ import { cartInfo } from '@/stores/cart'
 import { onShow } from '@dcloudio/uni-app'
 
 const { wxLogin } = useCloud()
+const type = ref(0) // 0=自提 1=配送
 
-// 页面显示时刷新商品数据
+// 页面显示时刷新
 onShow(async () => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  if (currentPage && currentPage.getTabBar) {
+    const tabBar = currentPage.getTabBar()
+    if (tabBar) {
+      tabBar.setData({ selected: 2 })
+    }
+  }
+
   if (!cartInfo.value.data || cartInfo.value.data.length === 0) return
 
   try {
     const goodsIdList = cartInfo.value.data.map(item => item.productId)
     const db = wx.cloud.database()
-
     const res = await db.collection('goods')
       .where({ _id: db.command.in(goodsIdList) })
       .get()
 
     const latestGoodsList = res.data || []
-
     const newCart = cartInfo.value.data.map(cartItem => {
       const goods = latestGoodsList.find(g => g._id === cartItem.productId)
       if (!goods) return cartItem
-
       return {
         ...cartItem,
         ...goods,
-        checked: cartItem.checked ?? true // 保留选中状态
+        checked: cartItem.checked ?? true
       }
     })
-
     cartInfo.value.data = newCart
     calcTotal()
-
   } catch (err) {
     console.error('加载商品失败', err)
   }
@@ -137,6 +157,21 @@ const calcTotal = () => {
 
 calcTotal()
 
+// 清空购物车
+const clearCart = () => {
+  uni.showModal({
+    title: '确认清空',
+    content: '确定要清空购物车所有商品吗？',
+    success: (res) => {
+      if (res.confirm) {
+        cartInfo.value.data = []
+        calcTotal()
+        uni.showToast({ title: '已清空', icon: 'success' })
+      }
+    }
+  })
+}
+
 // 去结算
 const toPay = () => {
   const hasChecked = cartInfo.value.data.some(i => i.checked)
@@ -169,7 +204,7 @@ const toPay = () => {
   width: 100%;
   min-height: 100vh;
   background: #fdfbf7;
-  padding-bottom: 120rpx;
+  padding-bottom: 180rpx;
 }
 
 .empty {
@@ -247,23 +282,74 @@ const toPay = () => {
   padding: 0 16rpx;
 }
 
+/* 底部双行栏 */
 .bottom-bar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 100rpx;
   background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 30rpx;
+  padding: 20rpx 30rpx;
+  padding-bottom: calc(46px + 20rpx);
   box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.04);
+}
+
+/* 第一行：自提/配送 + 清空 */
+.row1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.pick-type {
+  display: flex;
+  background: #f5f1ec;
+  border-radius: 12rpx;
+  padding: 4rpx;
+}
+
+.pick-type .item {
+  padding: 12rpx 20rpx;
+  font-size: 24rpx;
+  color: #999;
+  border-radius: 8rpx;
+}
+
+.pick-type .item.active {
+  background: #fff;
+  // color: #c89f82;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.clear-btn {
+  font-size: 24rpx;
+  color: #999;
+  background: #f5f1ec;
+  padding: 12rpx 20rpx;
+  border-radius: 12rpx;
+}
+
+/* 第二行：全选 + 合计 + 结算 */
+.row2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .all-check {
   display: flex;
   align-items: center;
+  gap: 8rpx;
+  font-size: 24rpx;
+  color: #333;
+}
+
+.right-group {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
 }
 
 .total {
@@ -281,5 +367,6 @@ const toPay = () => {
   padding: 16rpx 30rpx;
   border-radius: 50rpx;
   font-weight: bold;
+  font-size: 26rpx;
 }
 </style>

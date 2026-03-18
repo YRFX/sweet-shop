@@ -12,127 +12,159 @@
       </view>
     </view>
 
-    <!-- 2. 订单快捷入口 -->
-    <view class="order-section">
-      <view class="order-header">
-        <text>我的订单</text>
-        <text class="more">全部订单</text>
-      </view>
+    <!-- 2. 订单快捷入口 【登录后才显示】 -->
+    <view class="order-section" v-if="userInfo.isLogin">
       <view class="order-tab">
-        <view class="tab-item">
+        <view class="tab-item" @click="goToOrderByStatus(0)">
           <text class="icon">📦</text>
           <text>待付款</text>
         </view>
-        <view class="tab-item">
-          <text class="icon">⏳</text>
-          <text>待发货</text>
-        </view>
-        <view class="tab-item">
+        <view class="tab-item" @click="goToOrderByStatus(1)">
           <text class="icon">🚚</text>
-          <text>待收货</text>
+          <text>已发货</text>
         </view>
-        <view class="tab-item">
-          <text class="icon">⭐</text>
-          <text>待评价</text>
+        <view class="tab-item" @click="goToAllOrder">
+          <text class="icon">📋</text>
+          <text>全部订单</text>
         </view>
       </view>
     </view>
 
     <!-- 3. 功能菜单 -->
     <view class="menu-section">
-      <view class="menu-item" v-if="userInfo.isLogin" @click.stop="goToAddressList">
+      <view class="menu-item" v-if="userInfo.isLogin" @click="goToAddressList">
         <text>收货地址管理</text>
-        <text>></text>
+        <text>›</text>
       </view>
-      <view class="menu-item">
+      <view class="menu-item" @click="contactService">
         <text>联系客服</text>
-        <text>></text>
+        <text>›</text>
       </view>
-      <view class="menu-item">
+      <view class="menu-item" @click="aboutUs">
         <text>关于我们</text>
-        <text>></text>
+        <text>›</text>
       </view>
     </view>
 
     <!-- 浮动购物车 -->
-    <view class="global-float-cart" @click="goToCart">
-      <view class="icon">🛒</view>
-      <view class="badge" v-if="cartCount > 0">{{ cartCount }}</view>
+    <view class="float-cart" @click="goToCart">
+      <text class="icon">🛒</text>
+      <text class="badge" v-if="cartCount > 0">{{ cartCount }}</text>
     </view>
 
   </view>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { userInfo } from '../../stores/user';
+import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { userInfo } from '@/stores/user'
+import { cartInfo } from '@/stores/cart'
 import { useCloud } from '@/utils/useCloud'
 
 const { wxLogin } = useCloud()
-// const {userStore} =useUserStore();
 
 
-const cartCount = ref(0)
+onShow(() => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  if (currentPage && currentPage.getTabBar) {
+    const tabBar = currentPage.getTabBar()
+    if (tabBar) {
+      tabBar.setData({ selected: 3 }) // ✅ 我的 = 3
+    }
+  }
+})
+// 实时购物车数量
+const cartCount = computed(() => {
+  return cartInfo.value?.count || 0
+})
 
+// 登录
 const toLogin = () => {
+  if (userInfo.value.isLogin) return
   uni.showModal({
     title: '微信登录',
     content: '是否授权微信快捷登录',
     success: (res) => {
-      if (res.confirm) {
-        wxLogin()
-        uni.showToast({ title: '登录成功', icon: 'success' })
-      }
+      if (res.confirm) wxLogin()
     }
   })
 }
 
-
+// 去购物车
 const goToCart = () => {
-  uni.switchTab({
-    url: '/pages/cart/index'
+  uni.switchTab({ url: '/pages/cart/index' })
+}
+
+// 地址管理
+const goToAddressList = () => {
+  uni.navigateTo({ url: '/pages/address/index' })
+}
+
+// 全部订单
+const goToAllOrder = () => {
+  uni.navigateTo({ url: '/pages/order/list' })
+}
+
+// 按状态跳转订单
+const goToOrderByStatus = (status) => {
+  uni.navigateTo({
+    url: `/pages/order/list?status=${status}`
   })
 }
 
-const goToAddressList = () => {
-  if (!userInfo.value.isLogin) {
-    uni.showToast({ title: '请先登录', icon: 'none' })
-    return
-  }
-  uni.navigateTo({
-    url: '/pages/address/index'
+// 联系客服
+const contactService = () => {
+  uni.showModal({
+    title: '联系客服',
+    content: '暂未开通电话客服',
+    showCancel: false
+  })
+}
+
+// 关于我们
+const aboutUs = () => {
+  uni.showModal({
+    title: '关于我们',
+    content: '甜品小程序 · 安心选购',
+    showCancel: false
   })
 }
 </script>
 
 <style scoped lang="scss">
-/* 背景加深一点，更耐看，对比更强 */
+/* 全局 INS 奶油质感 */
 .mine-page {
   width: 100%;
   min-height: 100vh;
-  background: #f8f3f0;
-  /* 更干净的暖灰底 */
+  background: #f7f5f2;
+  padding: 20rpx;
+  box-sizing: border-box;
 }
 
-/* 用户头：更清晰 */
+/* 用户卡片 */
 .user-section {
-  background: #ffffff;
-  padding: 60rpx 30rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 44rpx 32rpx;
   display: flex;
   align-items: center;
   margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.03);
 }
 
 .avatar {
-  width: 100rpx;
-  height: 100rpx;
-  background: #fbe9e7;
+  width: 96rpx;
+  height: 96rpx;
+  background: #ffb4b0;
+  color: #fff;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 42rpx;
-  margin-right: 30rpx;
+  font-size: 44rpx;
+  margin-right: 28rpx;
 }
 
 .user-info {
@@ -140,107 +172,108 @@ const goToAddressList = () => {
 }
 
 .name {
-  font-size: 36rpx;
-  font-weight: 500;
-  color: #333333;
-  margin-bottom: 8rpx;
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #2d2d2d;
+  margin-bottom: 6rpx;
 }
 
 .tip {
   font-size: 24rpx;
-  color: #999999;
+  color: #9a9a9a;
 }
 
-/* 订单模块：强化卡片感 */
+/* 订单模块 */
 .order-section {
-  background: #ffffff;
-  padding: 30rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 40rpx 32rpx;
   margin-bottom: 24rpx;
-  border-radius: 16rpx;
-}
-
-.order-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 32rpx;
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 30rpx;
-}
-
-.more {
-  font-size: 26rpx;
-  color: #ff7a7c;
-  /* 主色突出 */
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.03);
 }
 
 .order-tab {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
 }
 
 .tab-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: 24rpx;
+  gap: 12rpx;
   color: #666;
 }
 
 .tab-item .icon {
-  font-size: 32rpx;
-  margin-bottom: 10rpx;
-}
-
-/* 菜单：线条更清晰 */
-.menu-section {
-  background: #ffffff;
-  padding: 0 30rpx;
-  border-radius: 16rpx;
-}
-
-.menu-item {
-  height: 100rpx;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 28rpx;
-  color: #333;
-  border-bottom: 1rpx solid #f0e6e2;
-}
-
-.menu-item:last-child {
-  border-bottom: none;
-}
-
-/* 浮动购物车 */
-.global-float-cart {
-  position: fixed;
-  right: 30rpx;
-  bottom: 120rpx;
-  width: 90rpx;
-  height: 90rpx;
-  background: #ffffff;
+  width: 60rpx;
+  height: 60rpx;
+  background: #f7f5f2;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6rpx 18rpx rgba(0, 0, 0, 0.12);
-  z-index: 9999;
+  font-size: 28rpx;
 }
 
-.global-float-cart .icon {
+/* 菜单 */
+.menu-section {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 0 32rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.03);
+}
+
+.menu-item {
+  height: 96rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 26rpx;
+  color: #333;
+  border-bottom: 1rpx solid #f2f0ed;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+/* 浮动购物车 */
+.float-cart {
+  position: fixed;
+  right: 32rpx;
+  bottom: 120rpx;
+  width: 88rpx;
+  height: 88rpx;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.12);
+  z-index: 99;
+}
+
+.float-cart .icon {
   font-size: 36rpx;
 }
 
-.global-float-cart .badge {
+.badge {
   position: absolute;
-  top: -10rpx;
-  right: -10rpx;
+  top: -8rpx;
+  right: -8rpx;
   background: #ff7a7c;
   color: #fff;
-  font-size: 22rpx;
-  padding: 4rpx 8rpx;
+  font-size: 20rpx;
+  min-width: 32rpx;
+  height: 32rpx;
   border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+page {
+  padding-bottom: 46px;
+  box-sizing: border-box;
 }
 </style>
