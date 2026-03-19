@@ -100,13 +100,13 @@ const goodsList = ref([])
 // 页面显示时加载线上商品
 onShow(() => {
     const pages = getCurrentPages()
-  const currentPage = pages[pages.length - 1]
-  if (currentPage && currentPage.getTabBar) {
-    const tabBar = currentPage.getTabBar()
-    if (tabBar) {
-      tabBar.setData({ selected: 1 }) // ✅ 甜品 = 1
+    const currentPage = pages[pages.length - 1]
+    if (currentPage && currentPage.getTabBar) {
+        const tabBar = currentPage.getTabBar()
+        if (tabBar) {
+            tabBar.setData({ selected: 1 }) // ✅ 甜品 = 1
+        }
     }
-  }
     loadGoodsList()
 })
 
@@ -467,8 +467,9 @@ const goToCart = () => {
     font-size: 30rpx;
     font-weight: bold;
 }
+
 page {
-  padding-bottom: 46px;
-  box-sizing: border-box;
+    padding-bottom: 46px;
+    box-sizing: border-box;
 }
 </style>

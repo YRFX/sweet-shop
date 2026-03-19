@@ -3,6 +3,7 @@ import { ref } from 'vue'
 // 全局用户状态
 const cartInfo = ref({
     data:[],
+    deliveryType:0,
     count: 0
 })
 // 登录

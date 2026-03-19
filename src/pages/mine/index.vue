@@ -1,18 +1,16 @@
 <template>
   <view class="mine-page">
 
-    <!-- 1. 用户信息头部 -->
+    <!-- 用户信息 -->
     <view class="user-section">
-      <view class="avatar" @click="toLogin">
-        👤
-      </view>
+      <view class="avatar" @click="toLogin">👤</view>
       <view class="user-info" @click="toLogin">
         <view class="name">{{ userInfo.isLogin ? userInfo.nickName : '点击登录' }}</view>
-        <view class="tip">{{ userInfo.isLogin ? '欢迎回来' : '未登录 · 点击授权微信登录' }}</view>
+        <view class="tip">{{ userInfo.isLogin ? '欢迎回来' : '未登录' }}</view>
       </view>
     </view>
 
-    <!-- 2. 订单快捷入口 【登录后才显示】 -->
+    <!-- 订单 -->
     <view class="order-section" v-if="userInfo.isLogin">
       <view class="order-tab">
         <view class="tab-item" @click="goToOrderByStatus(0)">
@@ -30,7 +28,7 @@
       </view>
     </view>
 
-    <!-- 3. 功能菜单 -->
+    <!-- 菜单 -->
     <view class="menu-section">
       <view class="menu-item" v-if="userInfo.isLogin" @click="goToAddressList">
         <text>收货地址管理</text>
@@ -40,7 +38,7 @@
         <text>联系客服</text>
         <text>›</text>
       </view>
-      <view class="menu-item" @click="aboutUs">
+      <view class="menu-item" @click="openAboutUs">
         <text>关于我们</text>
         <text>›</text>
       </view>
@@ -52,6 +50,15 @@
       <text class="badge" v-if="cartCount > 0">{{ cartCount }}</text>
     </view>
 
+    <!-- 🔥 自定义弹窗（可点击内部10次） -->
+    <view class="modal-mask" v-if="showAboutModal" @click="closeAboutUs">
+      <view class="modal-content" @click.stop="tapModalContent">
+        <view class="modal-title">关于我们</view>
+        <view class="modal-body">甜品小程序 · 安心选购</view>
+        <view class="modal-btn" @click="closeAboutUs">确定</view>
+      </view>
+    </view>
+
   </view>
 </template>
 
@@ -61,9 +68,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { userInfo } from '@/stores/user'
 import { cartInfo } from '@/stores/cart'
 import { useCloud } from '@/utils/useCloud'
-
-const { wxLogin } = useCloud()
-
+const {  toLogin } = useCloud()
 
 onShow(() => {
   const pages = getCurrentPages()
@@ -71,70 +76,71 @@ onShow(() => {
   if (currentPage && currentPage.getTabBar) {
     const tabBar = currentPage.getTabBar()
     if (tabBar) {
-      tabBar.setData({ selected: 3 }) // ✅ 我的 = 3
+      tabBar.setData({ selected: 3 })
     }
   }
 })
-// 实时购物车数量
+
+// 购物车数量
 const cartCount = computed(() => {
   return cartInfo.value?.count || 0
 })
 
-// 登录
-const toLogin = () => {
-  if (userInfo.value.isLogin) return
-  uni.showModal({
-    title: '微信登录',
-    content: '是否授权微信快捷登录',
-    success: (res) => {
-      if (res.confirm) wxLogin()
-    }
-  })
-}
+// 跳转
+const goToCart = () => uni.switchTab({ url: '/pages/cart/index' })
+const goToAddressList = () => uni.navigateTo({ url: '/pages/address/index' })
+const goToAllOrder = () => uni.navigateTo({ url: '/pages/order/list' })
+const goToOrderByStatus = (status) => uni.navigateTo({ url: `/pages/order/list?status=${status}` })
 
-// 去购物车
-const goToCart = () => {
-  uni.switchTab({ url: '/pages/cart/index' })
-}
-
-// 地址管理
-const goToAddressList = () => {
-  uni.navigateTo({ url: '/pages/address/index' })
-}
-
-// 全部订单
-const goToAllOrder = () => {
-  uni.navigateTo({ url: '/pages/order/list' })
-}
-
-// 按状态跳转订单
-const goToOrderByStatus = (status) => {
-  uni.navigateTo({
-    url: `/pages/order/list?status=${status}`
-  })
-}
-
-// 联系客服
+// 客服
 const contactService = () => {
-  uni.showModal({
-    title: '联系客服',
-    content: '暂未开通电话客服',
-    showCancel: false
-  })
+  uni.showModal({ title: '联系客服', content: '暂未开通', showCancel: false })
 }
 
-// 关于我们
-const aboutUs = () => {
-  uni.showModal({
-    title: '关于我们',
-    content: '甜品小程序 · 安心选购',
-    showCancel: false
-  })
+// ==============================================
+// 🔥 自定义关于我们弹窗（真正可点击内部10次）
+// ==============================================
+const showAboutModal = ref(false)
+const tapCount = ref(0)
+let tapTimer = null
+
+// 打开弹窗
+const openAboutUs = () => {
+  showAboutModal.value = true
+}
+
+// 关闭弹窗
+const closeAboutUs = () => {
+  showAboutModal.value = false
+}
+
+// 🔥 点击弹窗内部区域（连续10次触发）
+const tapModalContent = () => {
+  tapCount.value++
+  clearTimeout(tapTimer)
+
+  if (tapCount.value >= 10) {
+    tapCount.value = 0
+    const MY_OPENID = 'oqPQT5J6gqOghXacf6B60WhkRs08' // <-- 改这里
+
+    if (userInfo.value.openid === MY_OPENID) {
+      uni.showToast({ title: '欢迎管理员', icon: 'success' })
+      closeAboutUs()
+      uni.navigateTo({ url: '/pages/setting/index' })
+    } else {
+      uni.showToast({ title: '无权限', icon: 'none' })
+    }
+    return
+  }
+
+  // 2秒内连续点击有效
+  tapTimer = setTimeout(() => {
+    tapCount.value = 0
+  }, 3000)
 }
 </script>
 
 <style scoped lang="scss">
-/* 全局 INS 奶油质感 */
 .mine-page {
   width: 100%;
   min-height: 100vh;
@@ -143,7 +149,6 @@ const aboutUs = () => {
   box-sizing: border-box;
 }
 
-/* 用户卡片 */
 .user-section {
   background: #fff;
   border-radius: 24rpx;
@@ -151,7 +156,6 @@ const aboutUs = () => {
   display: flex;
   align-items: center;
   margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.03);
 }
 
 .avatar {
@@ -175,7 +179,6 @@ const aboutUs = () => {
   font-size: 34rpx;
   font-weight: 600;
   color: #2d2d2d;
-  margin-bottom: 6rpx;
 }
 
 .tip {
@@ -183,13 +186,11 @@ const aboutUs = () => {
   color: #9a9a9a;
 }
 
-/* 订单模块 */
 .order-section {
   background: #fff;
   border-radius: 24rpx;
   padding: 40rpx 32rpx;
   margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.03);
 }
 
 .order-tab {
@@ -216,12 +217,10 @@ const aboutUs = () => {
   font-size: 28rpx;
 }
 
-/* 菜单 */
 .menu-section {
   background: #fff;
   border-radius: 24rpx;
   padding: 0 32rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.03);
 }
 
 .menu-item {
@@ -238,7 +237,6 @@ const aboutUs = () => {
   }
 }
 
-/* 浮动购物车 */
 .float-cart {
   position: fixed;
   right: 32rpx;
@@ -252,10 +250,6 @@ const aboutUs = () => {
   justify-content: center;
   box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.12);
   z-index: 99;
-}
-
-.float-cart .icon {
-  font-size: 36rpx;
 }
 
 .badge {
@@ -272,6 +266,51 @@ const aboutUs = () => {
   align-items: center;
   justify-content: center;
 }
+
+/* 自定义弹窗样式 */
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.modal-content {
+  width: 80%;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 40rpx;
+  text-align: center;
+}
+
+.modal-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  margin-bottom: 20rpx;
+}
+
+.modal-body {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 40rpx;
+  min-height: 100rpx;
+  line-height: 100rpx;
+}
+
+.modal-btn {
+  background: #f5e9e2;
+  color: #997c6c;
+  padding: 20rpx;
+  border-radius: 10rpx;
+  font-size: 28rpx;
+}
+
 page {
   padding-bottom: 46px;
   box-sizing: border-box;

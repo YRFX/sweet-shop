@@ -18,7 +18,6 @@ const login = async (info) => {
     isLogin: true,
     isGuest: false
   }
-  console.log(userInfo.value)
   uni.setStorageSync('userInfo', userInfo.value)
 }
 

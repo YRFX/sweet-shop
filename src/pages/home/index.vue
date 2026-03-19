@@ -10,34 +10,34 @@
     </view>
 
     <!-- 2. 用户状态（未登录 = 游客，点击登录） -->
-    <view class="user-info" @click="toLogin">
+    <view class="user-info" @click="toLogin" :class="{ disabled: logging }">
       <view class="avatar">👤</view>
       <view class="nickname">
-        {{ userInfo.isLogin ? userInfo.nickName+' 您好' : '游客 点击登录' }}
+        {{ userInfo.isLogin ? userInfo.nickName + ' 您好' : '游客 点击登录' }}
       </view>
     </view>
 
     <!-- 自提 / 配送 切换 -->
-<view class="pick-delivery">
-  <view class="tab {{ selectedType == 0 ? 'active' : '' }}" @click="selectedType = 0">
-    <text>自提</text>
-  </view>
-  <view class="tab {{ selectedType == 1 ? 'active' : '' }}" @click="selectedType = 1">
-    <text>配送</text>
-  </view>
-</view>
-    
+    <view class="pick-delivery">
+      <view class="tab {{ selectedType == 0 ? 'active' : '' }}" @click="selectedType = 0">
+        <text>自提</text>
+      </view>
+      <view class="tab {{ selectedType == 1 ? 'active' : '' }}" @click="selectedType = 1">
+        <text>配送</text>
+      </view>
+    </view>
+
     <!-- 4. 热销产品 -->
     <view class="hot-title">热销产品</view>
     <view class="goods-list">
       <view class="goods-item" v-for="good in promoteGoodsList" :key="good._id">
-        <view class="goods-img"  @click="goToProductDetail(good)"></view>
-        <view class="goods-name">{{good.name}}</view>
-        <view class="goods-price">¥ {{good.price}}</view>
+        <view class="goods-img" @click="goToProductDetail(good)"></view>
+        <view class="goods-name">{{ good.name }}</view>
+        <view class="goods-price">¥ {{ good.price }}</view>
       </view>
     </view>
 
-   <CartFloat></CartFloat>
+    <CartFloat></CartFloat>
   </view>
 </template>
 
@@ -47,24 +47,7 @@ import { userInfo } from '../../stores/user';
 import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useCloud } from '@/utils/useCloud'
-const { wxLogin } = useCloud()
-const { getGoodsList } = useCloud()
-
-
-// 点击登录
-const toLogin = () => {
-  uni.showModal({
-    title: '微信登录',
-    content: '是否授权微信快捷登录',
-    success: (res) => {
-      if (res.confirm) {
-        wxLogin()
-        uni.showToast({ title: '登录成功', icon: 'success' })
-      }
-    }
-  })
-}
-
+const { getGoodsList, isShopOpen,toLogin } = useCloud()
 
 const promoteGoodsList = ref([])
 
@@ -81,14 +64,19 @@ onShow(() => {
 
 // 页面加载时读取云数据
 onLoad(async () => {
+  if (!await isShopOpen()) {
+    uni.showToast({
+      title: '店铺已休息，暂无法下单',
+      icon: 'none'
+    })
+  }
   getPromoteGoods()
-  console.log('🍰 云商品：', promoteGoodsList.value)
 })
 
-const getPromoteGoods = (async ()=> {
+const getPromoteGoods = (async () => {
   const tempGoods = await getGoodsList()
   tempGoods.forEach(element => {
-    promoteGoodsList.value.push(element)  
+    promoteGoodsList.value.push(element)
   });
 })
 
@@ -101,7 +89,7 @@ const getPromoteGoods = (async ()=> {
 // })
 const goToProductDetail = (item) => {
   uni.navigateTo({
-    url: "/pages/product/index?id=" + item._id 
+    url: "/pages/product/index?id=" + item._id
   })
 }
 
@@ -227,6 +215,7 @@ const goToAddress = () => {
   padding: 8rpx;
   box-sizing: border-box;
 }
+
 .pick-delivery .tab {
   flex: 1;
   text-align: center;
@@ -236,14 +225,21 @@ const goToAddress = () => {
   color: #999;
   transition: all 0.2s ease;
 }
+
 .pick-delivery .tab.active {
   background: #ffffff;
   color: #c89f82;
   font-weight: bold;
   box-shadow: 0 3rpx 10rpx rgba(0, 0, 0, 0.05);
 }
+
 .page {
   padding-bottom: 46px;
   box-sizing: border-box;
+}
+
+.user-info.disabled {
+  opacity: 0.6;
+  pointer-events: none;
 }
 </style>

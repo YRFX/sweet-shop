@@ -37,10 +37,10 @@
       <view class="row1">
         <view class="pick-type">
           <!-- 这里改成正确的 Vue 动态 class 写法 -->
-          <view class="item" :class="{ active: type === 0 }" @click="type = 0">
+          <view class="item" :class="{ active: cartInfo.deliveryType === 0 }" @click="cartInfo.deliveryType = 0">
             <text>自提</text>
           </view>
-          <view class="item" :class="{ active: type === 1 }" @click="type = 1">
+          <view class="item" :class="{ active: cartInfo.deliveryType === 1 }" @click="cartInfo.deliveryType = 1">
             <text>配送</text>
           </view>
         </view>
@@ -58,7 +58,7 @@
           <view class="total">
             合计：<text>¥ {{ totalPrice }}</text>
           </view>
-          <view class="pay" @click="toPay">去结算</view>
+          <view class="pay" :disabled="isShopOpen()" @click="toPay">去结算</view>
         </view>
       </view>
     </view>
@@ -68,12 +68,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { userInfo } from '@/stores/user'
-import { useCloud } from '@/utils/useCloud'
 import { cartInfo } from '@/stores/cart'
 import { onShow } from '@dcloudio/uni-app'
-
-const { wxLogin } = useCloud()
-const type = ref(0) // 0=自提 1=配送
+import { useCloud } from '@/utils/useCloud'
+const { isShopOpen, toLogin } = useCloud()
 
 // 页面显示时刷新
 onShow(async () => {
@@ -173,7 +171,15 @@ const clearCart = () => {
 }
 
 // 去结算
-const toPay = () => {
+const toPay = async () => {
+
+  if (! await isShopOpen()) {
+    uni.showToast({
+      title: '店铺已休息，暂无法下单',
+      icon: 'none'
+    })
+    return
+  }
   const hasChecked = cartInfo.value.data.some(i => i.checked)
   if (!hasChecked) {
     uni.showToast({ title: '请选择商品', icon: 'none' })
@@ -181,15 +187,7 @@ const toPay = () => {
   }
 
   if (!userInfo.value.isLogin) {
-    uni.showModal({
-      title: '请先登录',
-      content: '是否授权微信快捷登录？',
-      success: (res) => {
-        if (res.confirm) {
-          wxLogin()
-        }
-      }
-    })
+    toLogin()
     return
   }
 

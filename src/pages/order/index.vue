@@ -1,8 +1,18 @@
 <template>
   <view class="checkout-page">
 
-    <!-- 地址区域 -->
-    <view class="address-section" @click="goToAddress">
+    <!-- 取货方式：自提 / 配送 -->
+    <view class="pick-type-bar">
+      <view class="item" :class="{ active: cartInfo.deliveryType === 0 }" @click="setDelivery(0)">
+        <text>到店自提</text>
+      </view>
+      <view class="item" :class="{ active: cartInfo.deliveryType === 1 }" @click="setDelivery(1)">
+        <text>配送到家</text>
+      </view>
+    </view>
+
+    <!-- 地址区域（仅配送显示） -->
+    <view class="address-section" @click="goToAddress" v-if="cartInfo.deliveryType === 1">
       <view>
         <view class="default-tag" v-if="defaultAddress._id == userInfo.address">上次用过</view>
         <view class="name">姓名：{{ defaultAddress.name }}</view>
@@ -12,7 +22,7 @@
       <text class="arrow">></text>
     </view>
 
-    <!-- 商品区域（实时从云数据库获取） -->
+    <!-- 商品区域 -->
     <view class="goods-section">
       <view class="item" v-for="item in goodsList" :key="item._id">
         <view class="name">{{ item.name }}</view>
@@ -29,11 +39,11 @@
       </view>
       <view class="row">
         <text>配送费</text>
-        <text>¥0</text>
+        <text>¥{{ deliveryFee }}</text>
       </view>
       <view class="row total">
         <text>实付款</text>
-        <text>¥{{ totalPrice }}</text>
+        <text>¥{{ totalPrice + deliveryFee }}</text>
       </view>
     </view>
 
@@ -46,31 +56,54 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { userInfo } from '@/stores/user'
 import { cartInfo } from '@/stores/cart'
+
+import { useCloud } from '@/utils/useCloud'
+const {  isShopOpen } = useCloud()
 
 const goodsList = ref([])
 const defaultAddress = ref({})
 const hasDefaultAddress = ref(false)
 const totalPrice = ref(0)
+
+// 取货方式 0=自提 1=配送
+const deliveryFee = ref(0)
+const DELIVERY_FEE = 5 // 配送费
+
 const db = wx.cloud.database()
 
 onShow(async () => {
-
   if (!userInfo.value.isLogin) {
     uni.showToast({ title: '请先登录', icon: 'none' })
     return
+  }
+  if (!await isShopOpen()) {
+    uni.showToast({
+      title: '店铺已休息，暂无法下单',
+      icon: 'none'
+    })
+    setTimeout(() => {
+      uni.navigateBack()
+    }, 1000)
   }
 
   await loadRealGoodsData()
   await loadDefaultAddress()
   calcTotalPrice()
 
-  // 判断是否有地址
   hasDefaultAddress.value = !!(defaultAddress.value && defaultAddress.value._id)
 })
+
+// 切换取货方式
+const setDelivery = (val) => {
+  cartInfo.value.deliveryType = val
+  deliveryFee.value = val === 1 ? DELIVERY_FEE : 0
+}
+
+
 
 // 实时加载最新商品数据
 const loadRealGoodsData = async () => {
@@ -110,92 +143,66 @@ const goToAddress = () => {
   uni.navigateTo({ url: '/pages/address/index?isSelectMode=true' })
 }
 
-// ==============================================
-// 🔥 你要的核心逻辑：提交订单（检查待支付 + 生成订单）
-// ==============================================
-// ==============================================
-// 🔥 最终版：检查待支付订单 + 数据库重新计价 + 生成订单
-// ==============================================
-// ==============================================
-// 🔥 最终版：检查待支付订单 + 数据库重新计价 + 生成时间
-// ==============================================
+// 提交订单
 const submitOrder = async () => {
-  if (!hasDefaultAddress.value) {
+  if (!await isShopOpen()) {
+    uni.showToast({
+      title: '店铺已休息，暂无法下单',
+      icon: 'none'
+    })
+    setTimeout(() => {
+      uni.navigateBack()
+    }, 1000)
+  }
+  if (cartInfo.value.deliveryType === 1 && !hasDefaultAddress.value) {
     uni.showToast({ title: '请选择收货地址', icon: 'none' })
     return
   }
 
-  // 1. 先检查有没有待支付订单
+  // 检查待支付订单
   const existOrder = await db.collection('orders')
     .where({
       userId: userInfo.value.openid,
-      status: 0 // 0=待支付
+      status: 0
     })
     .limit(1)
     .get()
 
   if (existOrder.data.length > 0) {
-    const order = existOrder.data[0]
-
-    // ✅ 提示用户：有待支付订单，请先处理
-    uni.showToast({
-      title: '您有待支付订单，请先处理',
-      icon: 'none',
-      duration: 2000
-    })
-
-    // 延迟跳转，让用户看清提示
+    uni.showToast({ title: '您有待支付订单', icon: 'none' })
     setTimeout(() => {
-      uni.navigateTo({
-        url: `/pages/order/detail?id=${order._id}`
-      })
+      uni.navigateTo({ url: `/pages/order/detail?id=${existOrder.data[0]._id}` })
     }, 1200)
-
     return
   }
 
-  // ==============================================
-  // 🔥 核心：从数据库重新查询商品 + 重新计算价格（安全版）
-  // ==============================================
+  // 重新计价
   let realTotalPrice = 0
   const orderGoodsList = []
-
   for (const item of cartInfo.value.data) {
     try {
-      // 从数据库查最新商品
       const goodsRes = await db.collection('goods').doc(item.productId).get()
       const goods = goodsRes.data
-
       if (!goods) continue
-
-      // 数据库价格 × 购买数量
-      const realPrice = goods.price
       const num = item.num
-
-      // 累加到订单总价
-      realTotalPrice += realPrice * num
-
-      // 放入订单商品列表
+      realTotalPrice += goods.price * num
       orderGoodsList.push({
         _id: goods._id,
         name: goods.name,
-        price: realPrice, // 🔥 数据库真实价格
+        price: goods.price,
         buyCount: num
       })
-    } catch (e) {
-      console.error('商品查询失败', e)
-    }
+    } catch (e) { }
   }
 
-  // 无商品 → 拦截
   if (orderGoodsList.length === 0) {
     uni.showToast({ title: '商品异常', icon: 'none' })
     return
   }
 
-  // ==============================================
-  // 生成订单号（年月日时分秒 + 3位随机数）
-  // ==============================================
+  const finalPay = realTotalPrice + deliveryFee.value
+
+  // 订单号
   const createOrderNo = () => {
     const date = new Date()
     const year = date.getFullYear()
@@ -204,36 +211,28 @@ const submitOrder = async () => {
     const hour = String(date.getHours()).padStart(2, '0')
     const minute = String(date.getMinutes()).padStart(2, '0')
     const second = String(date.getSeconds()).padStart(2, '0')
-    const random = String(Math.floor(Math.random() * 900 + 100)) // 3位随机数
-
+    const random = String(Math.floor(Math.random() * 900 + 100))
     return `${year}${month}${day}${hour}${minute}${second}${random}`
   }
-
-  // 使用
   const orderNo = createOrderNo()
 
-  // ==============================================
-  // 🔥 生成订单（带时间 + 真实金额）
-  // ==============================================
+  // 订单数据
   const orderData = {
     userId: userInfo.value.openid,
+    deliveryType: cartInfo.value.deliveryType,    // 0自提1配送
+    deliveryFee: deliveryFee.value,      // 配送费
     address: defaultAddress.value,
     orderNo: orderNo,
-    goods: orderGoodsList,        // 🔥 从数据库查的商品
-    totalPrice: realTotalPrice,  // 🔥 从数据库重算的金额
-    status: 0,                   // 待支付
-    createTime: new Date(),      // ✅ 生成时间（标准时间）
-    createTimeStamp: Date.now()  // ✅ 时间戳（方便排序/查询）
+    goods: orderGoodsList,
+    totalPrice: realTotalPrice,
+    finalPay: finalPay,
+    status: 0,
+    createTime: new Date(),
+    createTimeStamp: Date.now()
   }
 
-  const addRes = await db.collection('orders').add({
-    data: orderData
-  })
-
-  // 跳订单详情页
-  uni.navigateTo({
-    url: `/pages/order/detail?id=${addRes._id}`
-  })
+  const addRes = await db.collection('orders').add({ data: orderData })
+  uni.navigateTo({ url: `/pages/order/detail?id=${addRes._id}` })
 }
 </script>
 
@@ -241,21 +240,47 @@ const submitOrder = async () => {
 .checkout-page {
   width: 100%;
   min-height: 100vh;
-  background: #f8f3f0;
+  background: #fdfbf7;
+  padding-bottom: 120rpx;
+}
+
+/* 自提/配送 切换 */
+.pick-type-bar {
+  display: flex;
+  background: #f5f1ec;
+  margin: 20rpx 30rpx;
+  border-radius: 16rpx;
+  padding: 6rpx;
+
+  .item {
+    flex: 1;
+    text-align: center;
+    padding: 22rpx 0;
+    border-radius: 12rpx;
+    font-size: 26rpx;
+    color: #999;
+  }
+
+  .item.active {
+    background: #fff;
+    color: #c89f82;
+    font-weight: bold;
+  }
 }
 
 .address-section {
   background: #fff;
   padding: 30rpx;
-  margin-bottom: 20rpx;
+  margin: 0 30rpx 20rpx;
+  border-radius: 20rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
 
   .default-tag {
     display: inline-block;
-    background: #ff7a7c;
-    color: #fff;
+    background: #f5e9e2;
+    color: #997c6c;
     padding: 4rpx 12rpx;
     border-radius: 6rpx;
     font-size: 22rpx;
@@ -278,11 +303,6 @@ const submitOrder = async () => {
     color: #999;
   }
 
-  .no-address {
-    color: #ff7a7c;
-    font-size: 28rpx;
-  }
-
   .arrow {
     font-size: 28rpx;
     color: #ccc;
@@ -291,6 +311,8 @@ const submitOrder = async () => {
 
 .goods-section {
   background: #fff;
+  margin: 0 30rpx;
+  border-radius: 20rpx;
   padding: 0 30rpx;
 
   .item {
@@ -311,7 +333,7 @@ const submitOrder = async () => {
 
   .price {
     font-size: 30rpx;
-    color: #ff7a7c;
+    color: #c89f82;
     font-weight: bold;
   }
 
@@ -323,8 +345,9 @@ const submitOrder = async () => {
 
 .price-section {
   background: #fff;
+  margin: 20rpx 30rpx;
+  border-radius: 20rpx;
   padding: 30rpx;
-  margin-top: 20rpx;
 
   .row {
     display: flex;
@@ -336,7 +359,7 @@ const submitOrder = async () => {
       margin-top: 10rpx;
       font-size: 30rpx;
       font-weight: bold;
-      color: #ff7a7c;
+      color: #c89f82;
     }
   }
 }
@@ -352,13 +375,14 @@ const submitOrder = async () => {
 
   .btn {
     height: 88rpx;
-    background: #ff7a7c;
-    color: #fff;
+    background: #f5e9e2;
+    color: #997c6c;
     border-radius: 44rpx;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 30rpx;
+    font-weight: bold;
   }
 }
 </style>
